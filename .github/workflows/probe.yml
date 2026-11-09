@@ -1,0 +1,24 @@
+name: probe
+on: workflow_dispatch
+jobs:
+  q:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get -qq install -y libplist-utils >/dev/null 2>&1 || true
+          curl -sSL -o a.ipa https://github.com/Adamtheggg/proxyman-build/releases/download/v1/com.nsproxy.NSProxy-iOS-26.4.1-eeveedecrypter.ipa
+          unzip -q a.ipa -d w
+          A=w/Payload/Proxyman.app
+          python3 - "$A" <<'PY'
+import sys,os,re,glob
+app=sys.argv[1]
+b=open(os.path.join(app,'Proxyman'),'rb').read()
+m=re.search(rb'<\?xml.*?</plist>',b,re.S)
+print('ENTXML', m is not None)
+print('BLOB', b.find(bytes.fromhex('fade7171')))
+for d in ['SC_Info','CodeResources']:
+    print(d, glob.glob(app+'/**/'+d, recursive=True))
+print('DYLIB', glob.glob(app+'/Frameworks/*.dylib'))
+print('APPEX', glob.glob(app+'/**/*.appex', recursive=True))
+PY
