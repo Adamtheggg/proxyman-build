@@ -1,4 +1,4 @@
-name: sig
+name: sig2
 on: [workflow_dispatch, push]
 jobs:
   s:
@@ -7,7 +7,4 @@ jobs:
       - run: |
           curl -sSL -o a.ipa https://github.com/Adamtheggg/proxyman-build/releases/download/v1/com.nsproxy.NSProxy-iOS-26.4.1-eeveedecrypter.ipa
           unzip -q a.ipa -d x
-          A=x/Payload/Proxyman.app
-          echo LIST; ls -1 $A
-          echo CS; ls -1 $A/_CodeSignature || echo NOCS
-          echo PROF; find x -name '*mobileprovision' -o -name '*provisionprofile' | head
+          python3 tools.py
