@@ -1,0 +1,30 @@
+name: prep
+on: [workflow_dispatch, push]
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -sSL -o in.ipa https://github.com/Adamtheggg/proxyman-build/releases/download/v1/com.nsproxy.NSProxy-iOS-26.4.1-eeveedecrypter.ipa
+          unzip -q in.ipa -d w
+          A=w/Payload/Proxyman.app
+          rm -rf $A/_CodeSignature $A/embedded.mobileprovision $A/SC_Info
+          find $A -name '*.dSYM' -prune -exec rm -rf {} +
+          python3 - "$A" <<'PY'
+import sys,os,plistlib
+app=sys.argv[1]
+f=os.path.join(app,'Info.plist')
+p=plistlib.load(open(f,'rb'))
+p['CFBundleIdentifier']='com.nsproxy.NSProxy-iOS'
+p['MinimumOSVersion']='17.0'
+plistlib.dump(p,open(f,'wb'),fmt=plistlib.FMT_BINARY)
+print('OK bundle',p['CFBundleIdentifier'])
+PY
+          cp -r $A w/Payload/Proxyman.app.bak 2>/dev/null || true
+          rm -rf w/Payload/Proxyman.app.bak
+          cd w && zip -qry ../Proxyman-clean.ipa Payload && cd ..
+          ls -l Proxyman-clean.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Proxyman-clean
+          path: Proxyman-clean.ipa
