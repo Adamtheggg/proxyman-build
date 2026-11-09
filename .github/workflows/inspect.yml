@@ -1,0 +1,83 @@
+name: inspect
+on:
+  workflow_dispatch:
+  push:
+    paths: [ '.github/workflows/inspect.yml' ]
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: fetch
+        run: |
+          curl -sSL -o a.ipa 'https://github.com/Adamtheggg/proxyman-build/releases/download/v1/com.nsproxy.NSProxy-iOS-26.4.1-eeveedecrypter.ipa'
+          ls -l a.ipa
+          unzip -q a.ipa -d x
+          APP=$(ls -d x/Payload/*.app | head -1)
+          echo "APP=$APP" >> $GITHUB_ENV
+      - name: meta
+        run: |
+          python3 - <<'EOF'
+          import plistlib,glob,os,json
+          app=os.environ['APP']
+          p=plistlib.load(open(os.path.join(app,'Info.plist'),'rb'))
+          for k in ['CFBundleIdentifier','CFBundleExecutable','CFBundleShortVersionString','CFBundleVersion','MinimumOSVersion','DTSDKName','DTPlatformVersion','CFBundleSupportedPlatforms','UIDeviceFamily','UIRequiredDeviceCapabilities','UIBackgroundModes','LSRequiresIPhoneOS']:
+            print(k,'=',p.get(k))
+          print('CODESIG',os.path.isdir(os.path.join(app,'_CodeSignature')))
+          print('PROFILE',os.path.exists(os.path.join(app,'embedded.mobileprovision')))
+          fw=glob.glob(os.path.join(app,'Frameworks','*'))
+          print('FRAMEWORKS',len(fw))
+          for f in fw[:40]: print('  FW',os.path.basename(f))
+          exe=os.path.join(app,p['CFBundleExecutable'])
+          print('EXE_EXISTS',os.path.exists(exe))
+          d=open(exe,'rb').read(64)
+          print('MAGIC',d[:8].hex())
+          import struct
+          cpu=struct.unpack('<I',d[4:8])[0]; sub=struct.unpack('<I',d[8:12])[0]
+          print('CPU',hex(cpu),'SUB',hex(sub))
+          print('SIZE',os.path.getsize(exe))
+          EOF
+      - name: crypt
+        run: |
+          python3 - <<'EOF'
+          import os,struct,plistlib
+          app=os.environ['APP']
+          exe=os.path.join(app,plistlib.load(open(os.path.join(app,'Info.plist'),'rb'))['CFBundleExecutable'])
+          b=open(exe,'rb').read()
+          magic=struct.unpack('<I',b[0:4])[0]
+          print('magic',hex(magic))
+          if magic in (0xfeedfacf,0xfeedface):
+            is64 = magic==0xfeedfacf
+            ncmds=struct.unpack('<I',b[16:20])[0]
+            off=32 if is64 else 28
+            crypt=None; rpaths=[]; libs=[]
+            for i in range(ncmds):
+              cmd,sz=struct.unpack('<II',b[off:off+8])
+              if cmd in (0x2c,0x21): crypt=struct.unpack('<I',b[off+16:off+20])[0]
+              if cmd==0x8000001c:
+                o=struct.unpack('<I',b[off+8:off+12])[0]; rpaths.append(b[off+o:b.index(b'\0',off+o)].decode())
+              if cmd in (0xc,0x18):
+                o=struct.unpack('<I',b[off+8:off+12])[0]; libs.append(b[off+o:b.index(b'\0',off+o)].decode())
+              off+=sz
+            print('CRYPTID',crypt)
+            print('RPATHS',rpaths)
+            print('LIBS',libs)
+          else:
+            print('fat or unknown, no load cmds')
+          EOF
+      - name: profile
+        run: |
+          python3 - <<'EOF'
+          import os,plistlib,re
+          app=os.environ['APP']; f=os.path.join(app,'embedded.mobileprovision')
+          if not os.path.exists(f): print('NO PROFILE'); raise SystemExit
+          d=open(f,'rb').read()
+          m=re.search(rb'<plist.*?</plist>',d,re.S)
+          p=plistlib.loads(m.group(0))
+          print('NAME',p.get('Name'))
+          print('EXPIRES',p.get('ExpirationDate'))
+          print('DEVICES',len(p.get('ProvisionedDevices',[]) or []))
+          print('ALLDEVICES',p.get('ProvisionsAllDevices'))
+          print('TEAM',p.get('TeamIdentifier'))
+          print('ENTITLEMENTS',p.get('Entitlements'))
+          print('CERTS',len(p.get('DeveloperCertificates',[]) or []))
+          EOF
