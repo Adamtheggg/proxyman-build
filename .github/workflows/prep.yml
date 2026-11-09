@@ -1,5 +1,22 @@
 name: prep
 on: [workflow_dispatch, push]
+permissions:
+  contents: write
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -sSL -o in.ipa https://github.com/Adamtheggg/proxyman-build/releases/download/v1/com.nsproxy.NSProxy-iOS-26.4.1-eeveedecrypter.ipa
+      - run: unzip -q in.ipa -d w
+      - run: rm -rf w/Payload/Proxyman.app/_CodeSignature w/Payload/Proxyman.app/embedded.mobileprovision w/Payload/Proxyman.app/SC_Info
+      - run: python3 fix.py
+      - run: cd w && zip -qry ../Proxyman-clean.ipa Payload && cd .. && ls -l Proxyman-clean.ipa
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: clean
+          name: Proxyman 26.4.1 cleaned (unsigned)
+          files: Proxyman-clean.ipaname: prep
+on: [workflow_dispatch, push]
 jobs:
   p:
     runs-on: ubuntu-latest
