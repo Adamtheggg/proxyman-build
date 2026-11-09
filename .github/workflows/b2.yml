@@ -1,0 +1,16 @@
+name: b2
+on: [workflow_dispatch, push]
+permissions: write-all
+jobs:
+  b:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash build2.sh
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ready
+          name: Proxyman ready-to-sign
+          files: |
+            Proxyman-signed-ready.ipa
+            Proxyman.entitlements
