@@ -1,0 +1,10 @@
+name: p3
+on: [workflow_dispatch, push]
+jobs:
+  q:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: curl -sSL -o a.ipa https://github.com/Adamtheggg/proxyman-build/releases/download/v1/com.nsproxy.NSProxy-iOS-26.4.1-eeveedecrypter.ipa
+      - run: unzip -q a.ipa -d w
+      - run: python3 probe.py
