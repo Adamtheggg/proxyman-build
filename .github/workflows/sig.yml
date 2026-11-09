@@ -1,0 +1,23 @@
+name: sig
+on: [workflow_dispatch, push]
+jobs:
+  s:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -sSL -o a.ipa https://github.com/${{ 'github.repository' }}/releases/download/v1/com.nsproxy.NSProxy-iOS-26.4.1-eeveedecrypter.ipa
+          unzip -q a.ipa -d x
+          A=x/Payload/Proxyman.app
+          echo '== top-level files =='
+          ls -la $A | head -40
+          echo '== signature =='
+          ls -la $A/_CodeSignature || true
+          echo '== entitlements =='
+          codesign -d --entitlements :- $A 2>&1 | head -40 || true
+          echo '== codesign verify =='
+          codesign -dv --verbose=4 $A 2>&1 | head -30 || true
+          echo '== any mobileprovision anywhere =='
+          find x -name '*.mobileprovision' -o -name '*.provisionprofile' | head
+          echo '== plist keys of interest =='
+          python3 -c "import plistlib;p=plistlib.load(open('$A/Info.plist','rb'));print([k for k in p if 'URL' in k or 'Type' in k]);print(p.get('CFBundleURLTypes'))"
+          echo done
